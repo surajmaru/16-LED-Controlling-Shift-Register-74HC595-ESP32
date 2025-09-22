@@ -1,0 +1,213 @@
+#define clockPin 10 // Clock pin of 74HC595 is connected to Digital pin 10
+#define dataPin  9  // Data pin of 74HC595 is connected to Digital pin 9 
+#define latchPin 8  // Latch pin of 74HC595 is connected to Digital pin 8
+
+const int numOfRegisters = 2;
+byte registerState[numOfRegisters];
+
+long effectId = 0;
+long prevEffect = 0;
+long effectRepeat = 0;
+long effectSpeed = 30;
+
+void setup() {
+  for (int i = 0; i < numOfRegisters; i++) {
+    registerState[i] = 0;
+  }
+  pinMode(latchPin, OUTPUT);
+  pinMode(clockPin, OUTPUT);
+  pinMode(dataPin, OUTPUT);
+
+  regClear();
+  regUpdate();
+}
+
+void loop() {
+  do {
+    effectId = random(11); // now 0–10
+  } while (effectId == prevEffect);
+  prevEffect = effectId;
+
+  switch (effectId) {
+    case 0:
+    case 1:
+    case 4:
+    case 5:
+      effectRepeat = random(1, 2);
+      break;
+    case 3:
+      effectRepeat = random(1, 5);
+      break;
+    default:
+      effectRepeat = random(2, 4);
+      break;
+  }
+
+  for (int i = 0; i < effectRepeat; i++) {
+    effectSpeed = random(20, 120);
+    switch (effectId) {
+      case 0: effectA(effectSpeed); break;
+      case 1: effectB(effectSpeed); break;
+      case 3: effectC(effectSpeed); break;
+      case 4: effectD(effectSpeed); break;
+      case 6: effectE(effectSpeed); break;
+      case 7: effectF(effectSpeed); break;  // sparkle
+      case 8: effectG(effectSpeed); break;  // snake wave
+      case 9: effectH(effectSpeed); break;  // ping pong
+      case 10: effectI(effectSpeed); break; // explosion
+    }
+  }
+}
+
+// ------------------- ORIGINAL EFFECTS -------------------
+
+void effectA(int speed){
+  for (int i = 0; i < 16; i++){
+    for (int k = i; k < 16; k++){
+      regWrite(k, HI
+      GH);
+      delay(speed);
+      regWrite(k, LOW);
+    }
+    regWrite(i, HIGH);
+  }
+}
+
+void effectB(int speed){
+  for (int i = 15; i >= 0; i--){
+    for (int k = 0; k < i; k++){
+      regWrite(k, HIGH);
+      delay(speed);
+      regWrite(k, LOW);
+    }
+    regWrite(i, HIGH);
+  }
+}
+
+void effectC(int speed){
+  int prevI = 0;
+  for (int i = 0; i < 16; i++){
+    regWrite(prevI, LOW);
+    regWrite(i, HIGH);
+    prevI = i;
+    delay(speed);
+  }
+  for (int i = 15; i >= 0; i--){
+    regWrite(prevI, LOW);
+    regWrite(i, HIGH);
+    prevI = i;
+    delay(speed);
+  }
+}
+
+void effectD(int speed){
+  for (int i = 0; i < 8; i++){
+    for (int k = i; k < 8; k++){
+      regWrite(k, HIGH);
+      regWrite(15 - k, HIGH);
+      delay(speed);
+      regWrite(k, LOW);
+      regWrite(15 - k, LOW);
+    }
+    regWrite(i, HIGH);
+    regWrite(15 - i, HIGH);
+  }
+}
+
+void effectE(int speed){
+  for (int i = 7; i >= 0; i--){
+    for (int k = 0; k <= i; k++){
+      regWrite(k, HIGH);
+      regWrite(15 - k, HIGH);
+      delay(speed);
+      regWrite(k, LOW);
+      regWrite(15 - k, LOW);
+    }
+    regWrite(i, HIGH);
+    regWrite(15 - i, HIGH);
+  }
+}
+
+// ------------------- NEW COOL EFFECTS -------------------
+
+// Random sparkle stars
+void effectF(int speed){
+  for (int i = 0; i < 40; i++){
+    int pos = random(16);
+    regWrite(pos, HIGH);
+    delay(speed / 2);
+    regWrite(pos, LOW);
+  }
+}
+
+// Snake / wave with a tail
+void effectG(int speed){
+  int tail = 3;
+  for (int i = 0; i < 16 + tail; i++){
+    if (i < 16) regWrite(i, HIGH);
+    if (i - tail >= 0) regWrite(i - tail, LOW);
+    delay(speed);
+  }
+  for (int i = 15; i >= -tail; i--){
+    if (i >= 0) regWrite(i, HIGH);
+    if (i + tail < 16) regWrite(i + tail, LOW);
+    delay(speed);
+  }
+}
+
+// Ping-pong double balls
+void effectH(int speed){
+  int left = 0, right = 15;
+  while (left <= right){
+    regWrite(left, HIGH);
+    regWrite(right, HIGH);
+    delay(speed);
+    regWrite(left, LOW);
+    regWrite(right, LOW);
+    left++;
+    right--;
+  }
+}
+
+// Explosion pulse
+void effectI(int speed){
+  for (int i = 0; i < 8; i++){
+    regWrite(i, HIGH);
+    regWrite(15 - i, HIGH);
+    delay(speed);
+  }
+  for (int i = 0; i < 8; i++){
+    regWrite(i, LOW);
+    regWrite(15 - i, LOW);
+    delay(speed);
+  }
+}
+
+// ------------------- SHIFT REGISTER CONTROL -------------------
+
+void regWrite(int pin, bool state){
+  int reg = pin / 8;
+  int actualPin = pin - (8 * reg);
+  bitWrite(registerState[reg], actualPin, state);
+
+  // update both registers (IMPORTANT: send in reverse order)
+  digitalWrite(latchPin, LOW);
+  for (int i = numOfRegisters - 1; i >= 0; i--){
+    shiftOut(dataPin, clockPin, MSBFIRST, registerState[i]);
+  }
+  digitalWrite(latchPin, HIGH);
+}
+
+void regClear(){
+  for (int i = 0; i < numOfRegisters; i++){
+    registerState[i] = 0;
+  }
+}
+
+void regUpdate(){
+  digitalWrite(latchPin, LOW);
+  for (int i = numOfRegisters - 1; i >= 0; i--){
+    shiftOut(dataPin, clockPin, MSBFIRST, registerState[i]);
+  }
+  digitalWrite(latchPin, HIGH);
+}
